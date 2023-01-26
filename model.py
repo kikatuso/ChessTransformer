@@ -5,7 +5,9 @@ import sys
 import numpy as np 
 from gensim.models import Word2Vec
 from torch.nn.modules.activation import MultiheadAttention
+import os
 
+dirname = os.path.dirname(__file__)
 
 
 def attention_mechanism(query: Tensor, key: Tensor,value: Tensor,mask: Tensor) -> Tensor:
@@ -70,13 +72,13 @@ class Residual(nn.Module):
 
 class Embedding(nn.Module):
   
-  def __init__(self,embed_path:str="drive/MyDrive/chess/chess_embedding_sep_model/chess2vec.model"):
+  def __init__(self,embed_path:str="chess_embedding/chess2vec.model"):
     super().__init__()
-    self.embed_layer=Word2Vec.load(embed_path)
+    self.embed_layer=Word2Vec.load(os.path.join(dirname,embed_path))
     self.dim_embed  = self.embed_layer.vector_size
-    self.corpus_length = len(self.embed_layer.wv.vocab)
-    self.index_to_word = {key:value for (key,value) in enumerate(self.embed_layer.wv.vocab.keys())}
-    self.word_to_index = {value:key for (key,value) in enumerate(self.embed_layer.wv.vocab.keys())}
+    self.corpus_length = len(self.embed_layer.wv.index_to_key)
+    self.index_to_word = {key:value for (key,value) in enumerate(self.embed_layer.wv.index_to_key)}
+    self.word_to_index = self.embed_layer.wv.key_to_index
 
     
   def embed(self,src):
@@ -85,6 +87,10 @@ class Embedding(nn.Module):
   def translate_itw(self,src):    
     return np.vectorize(self.index_to_word.__getitem__)(src)
 
+  def translate_wti(self,src):    
+    return np.vectorize(self.word_to_index.__getitem__)(src)
+
+  
 
 class TransformerDecoderLayer(nn.Module):
 
@@ -113,7 +119,7 @@ class TransformerDecoderLayer(nn.Module):
 
 class Decoder(nn.Module):
   def __init__(self,
-              embed_path:str="/chess_embedding/chess2vec.model",
+              embed_path:str="chess_embedding/chess2vec.model",
               num_layers:int=6,
               num_heads:int=6,
               dim_feedforward:int=2048,
@@ -153,7 +159,7 @@ class Decoder(nn.Module):
 
 class ChessTransformer(nn.Module):
   def __init__(self,
-              embed_path:str="/chess_embedding/chess2vec.model",
+              embed_path:str="chess_embedding/chess2vec.model",
                num_layers:int=6,
                num_heads:int=6,
                dim_feedforward:int=2048,
