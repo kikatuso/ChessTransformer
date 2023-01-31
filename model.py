@@ -8,7 +8,7 @@ from torch.nn.modules.activation import MultiheadAttention
 import os
 
 dirname = os.path.dirname(__file__)
-
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def timeis(func):
     '''Decorator that reports the execution time.'''
@@ -31,7 +31,6 @@ def attention_mechanism(query: Tensor, key: Tensor,value: Tensor,mask: Tensor) -
   out = softmax.bmm(value)
   return out 
 
-@timeis
 def position_encoding(seq_len: int, dim_model: int, device: torch.device = torch.device("cpu") )-> Tensor:
     pos = torch.arange(seq_len, dtype=torch.float, device=device).reshape(1, -1, 1)
     dim = torch.arange(dim_model, dtype=torch.float, device=device).reshape(1, 1, -1)
@@ -94,7 +93,6 @@ class Embedding(nn.Module):
     self.index_to_word = {key:value for (key,value) in enumerate(self.embed_layer.wv.index_to_key)}
     self.word_to_index = self.embed_layer.wv.key_to_index
 
-  @timeis
   def embed(self,src):
     return torch.Tensor(np.array([self.embed_layer.wv[key] for key in src]))
 
@@ -125,7 +123,6 @@ class TransformerDecoderLayer(nn.Module):
         dimension = dim_model,
         dropout = dropout)
 
-  @timeis
   def forward(self,src: Tensor,mask:Tensor) -> Tensor:
     src = self.attention(src, src, src,mask)
     return self.feed_forward(src)
@@ -144,7 +141,6 @@ class Decoder(nn.Module):
     self.layers = nn.ModuleList([TransformerDecoderLayer(self.embed_layer.dim_embed,num_heads,dim_feedforward,dropout) for _ in range(num_layers)])
     self.linear = nn.Linear(self.embed_layer.dim_embed,self.embed_layer.corpus_length)
 
-  @timeis
   def masking(self,batch_size,seq_len):
         """
         Args:
@@ -160,16 +156,13 @@ class Decoder(nn.Module):
     
 
   def forward(self, src: Tensor) -> Tensor:
-    src = self.embed_layer.embed(src)
+    src = self.embed_layer.embed(src).to(device)
     batch_size,seq_len, dimension = src.size(0),src.size(1), src.size(2)
-    src += position_encoding(seq_len, dimension)
-    mask = self.masking(batch_size,seq_len)
+    src += position_encoding(seq_len, dimension).to(device)
+    mask = self.masking(batch_size,seq_len).to(device)
     for layer in self.layers:
         src = layer(src,mask)
-    start=time.time()
     out = self.linear(src)
-    end=time.time()
-    print('Linear',end-start)
     return torch.softmax(out,dim=-1)
 
 
